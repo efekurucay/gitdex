@@ -1,10 +1,11 @@
-Bu klasorde extension icin gerekli placeholder ikonlar hazir gelir:
+Bu klasor repox marka varliklarini tutar:
 
 - icon16.png
 - icon48.png
 - icon128.png
 
-Isterseniz bunlari kendi markaniza ait PNG ikonlarla degistirebilirsiniz.
+README ve repo gorsellerinde ayni logo ailesi kullanilir.
+Gerekirse kendi PNG ikonlarinizla degistirebilirsiniz.
 Onerilen boyutlar:
 
 - 16x16 piksel

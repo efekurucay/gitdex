@@ -1,0 +1,45 @@
+{
+  "name": "@efekurucay/repox",
+  "version": "1.0.0",
+  "description": "Turn a local folder into clean, portable .txt bundles grouped by top-level directory.",
+  "type": "module",
+  "bin": {
+    "repox": "bin/repox.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "smoke": "node ./bin/repox.js --help"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/efekurucay/repox.git"
+  },
+  "keywords": [
+    "cli",
+    "repox",
+    "notebooklm",
+    "local-export",
+    "text-export",
+    "repo-export",
+    "context",
+    "ai"
+  ],
+  "author": "Efe Kurucay",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/efekurucay/repox/issues"
+  },
+  "homepage": "https://github.com/efekurucay/repox#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,95 +1,69 @@
 <div align="center">
-  <img src="icons/icon128.png" alt="GitHub to NotebookLM Logo" width="96" height="96" />
+  <img src="https://raw.githubusercontent.com/efekurucay/repox/main/icons/icon128.png" alt="repox logo" width="96" height="96" />
 
-# GitHub to NotebookLM
+  <h1>repox</h1>
+  <p>Turn any local folder into clean, portable <code>.txt</code> bundles.</p>
 
-GitHub repolarini NotebookLM'e uygun, temiz ve tasinabilir `.txt` paketlerine ceviren Chrome extension.
-
-![Open Source](https://img.shields.io/badge/Open%20Source-Yes-22c55e?style=for-the-badge)
-![Manifest V3](https://img.shields.io/badge/Chrome%20Extension-MV3-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-ES202x-f7df1e?style=for-the-badge&logo=javascript&logoColor=111)
-![License MIT](https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge)
-![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-0ea5e9?style=for-the-badge)
-
+  <p>
+    <a href="https://www.npmjs.com/package/@efekurucay/repox"><img alt="npm" src="https://img.shields.io/npm/v/%40efekurucay%2Frepox?style=for-the-badge&logo=npm"></a>
+    <a href="https://github.com/efekurucay/repox/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/efekurucay/repox/ci.yml?style=for-the-badge&label=CI"></a>
+    <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/efekurucay/repox?style=for-the-badge"></a>
+    <img alt="Node" src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white">
+    <img alt="Dependencies" src="https://img.shields.io/badge/dependencies-0-22c55e?style=for-the-badge">
+    <img alt="Open Source" src="https://img.shields.io/badge/Open%20Source-Yes-22c55e?style=for-the-badge">
+  </p>
 </div>
 
 ---
 
-## Nedir?
+## What it does
 
-`GitHub to NotebookLM`, bir GitHub reposunu analiz ederek NotebookLM tarafinda kolay tuketilecek metin dosyalarina donusturur. Ciktiyi tek bir ZIP dosyasi olarak indirir ve istenirse NotebookLM'e otomatik yuklemeyi dener.
+`repox` scans a local folder and converts it into clean text bundles that are easy to read, move, archive, diff, index, or feed into AI tools.
 
-Ozellikle teknik dokumantasyon, kod analizi ve AI destekli proje inceleme akislari icin tasarlanmistir.
+- root files become separate `.txt` files
+- each top-level directory becomes one merged `.txt`
+- every file block starts with its relative path
+- binary files are skipped by default
+- `.git` is skipped by default
+- `node_modules` is skipped by default
+- output is written into a fresh `repox/` folder
 
-## One Cikan Ozellikler
+## NotebookLM is a use case, not the product
 
-- Public repo URL'sinden dosya agacini GitHub API ile ceker
-- Her dosya blogunun basina relative dosya yolunu ekler
-- Root dosyalarini ayri `.txt`, alt klasorleri top-level klasor bazinda birlesik `.txt` uretir
-- Ciktilari tek bir `owner_repo.zip` icine paketler
-- `git/trees?recursive=1` sonuclari truncated olursa otomatik `contents` API fallback'i yapar
-- Binary dosyalari, `.git/` ve (opsiyonel) `node_modules/` klasorlerini atlar
-- Token bilgisini `chrome.storage.session` icinde sadece aktif oturum sureince tutar
-- Uzun surecen islerde ilerleme + tahmini kalan sure (ETA) gosterir
-- NotebookLM sekmesine gecip `input[type=file]` uzerinden otomatik yukleme dener
+`repox` is not tied to NotebookLM.
 
-## Kurulum
+One practical use case is this:
 
-1. Repoyu klonla veya ZIP olarak indir
-2. Chrome'da `chrome://extensions` sayfasini ac
-3. **Developer mode** secenegini aktif et
-4. **Load unpacked** butonuna tikla
-5. Proje klasorunu sec
+1. run `repox` inside a project
+2. get the generated `.txt` files inside `./repox`
+3. import those files into NotebookLM
 
-> Not: Ikon dosyalari proje icinde hazir gelir (`icons/icon16.png`, `icons/icon48.png`, `icons/icon128.png`).
+So NotebookLM support is simply one nice downstream workflow for the exported files — not the core identity of the project.
 
-## Hizli Kullanim
+## Example
 
-1. Extension popup'ini ac
-2. GitHub repo URL'si gir (`https://github.com/owner/repo`)
-3. Gerekirse GitHub tokeni ekle
-4. Filtreleme seceneklerini ayarla
-5. **Baslat** ile donusturme islemini calistir
-6. Islem bitince:
-   - **ZIP Olarak Indir** ile ciktiyi al, veya
-   - **NotebookLM'e Aktar** ile otomatik yukleme dene
-7. Otomatik yukleme olmazsa ZIP icindeki `.txt` dosyalarini manuel yukle
-
-### NotebookLM entegrasyonu hakkinda
-
-- Bir NotebookLM not defteri acik olmali
-- Google arayuzu degisirse `input[type=file]` yakalama davranisi etkilenebilir
-- Extension yuklendikten sonra NotebookLM sekmesini bir kez yenilemek iyi pratiktir
-
-## Donusturme Mantigi
-
-### Ornek girdi
+Input:
 
 ```text
-repo/
+project/
   README.md
   package.json
   src/
     index.ts
     utils/
       helper.ts
-  agent/
-    b.ts
+  docs/
+    intro.md
 ```
 
-### Ornek cikti
-
-- `README.txt`
-- `package.txt`
-- `src.txt`
-- `agent.txt`
-
-`README.txt`
+Output:
 
 ```text
-README.md
-# My Project
-...
+repox/
+  README.txt
+  package.txt
+  src.txt
+  docs.txt
 ```
 
 `src.txt`
@@ -104,40 +78,77 @@ src/utils/helper.ts
 export function ...
 ```
 
-## Teknik Detaylar
+## Usage
 
-- **Manifest**: MV3
-- **Rate limit**: Tokensiz 60 istek/saat, tokenli 5000 istek/saat
-- **ZIP olusturma**: Ek kutuphane olmadan browser icinde
-- **NotebookLM upload stratejisi**:
-  - `notebooklm-content.js` Shadow DOM dahil `input[type=file]` arar
-  - Add/Upload benzeri butonlari heuristik olarak tetikler
-  - `HTMLInputElement.prototype.files` setter ile dosya listesi enjekte eder
+Run it in the folder you want to export:
 
-## Proje Dosyalari
+```bash
+npx @efekurucay/repox
+```
 
-| Dosya | Gorev |
-|-------|-------|
-| `manifest.json` | Chrome Extension manifesti |
-| `popup.html` | Popup arayuzu |
-| `popup.css` | Popup stilleri |
-| `popup.js` | GitHub API, dosya donusturme, storage, indirme akisi |
-| `zip.js` | ZIP olusturma yardimcilari |
-| `background.js` | NotebookLM sekmesini bulma/acma, mesajlasma |
-| `notebooklm-content.js` | NotebookLM sayfasinda dosya inputuna aktarim |
+Or point it at another folder:
 
-## Katki
+```bash
+npx @efekurucay/repox ../my-project
+```
 
-Katkilar acik. Issue acabilir, iyilestirme onerebilir veya PR gonderebilirsin.
+After a global install:
 
-Onerilen akis:
+```bash
+npm i -g @efekurucay/repox
+repox
+```
 
-1. Fork al
-2. Yeni branch ac (`feature/xxx`)
-3. Degisikligini yap
-4. Commit + push
-5. Pull Request olustur
+## CLI options
 
-## Lisans
+```text
+repox [input-directory] [options]
 
-Bu proje **MIT** lisansi ile dagitilmaktadir.
+Options:
+  -o, --output <dir>           Output directory (default: ./repox)
+      --include-node-modules   Include node_modules
+      --include-dot-git        Include .git
+      --include-binary         Include binary files as UTF-8 text attempt
+      --force                  Clean an existing output directory
+      --silent                 Print only the final summary
+  -h, --help                   Show help
+  -v, --version                Show version
+```
+
+## Why this format?
+
+This output format is intentionally simple:
+
+- text only
+- relative paths preserved at the top of each block
+- top-level grouping keeps file count manageable
+- easy to import into tools like NotebookLM, or inspect manually
+
+## Notes
+
+- `repox/` output is automatically excluded from scanning.
+- Symbolic links are skipped to avoid recursive surprises.
+- If the output folder already exists and is not a repox-managed folder, the CLI stops unless you pass `--force`.
+- Output filename collisions are handled automatically.
+
+## Local development
+
+```bash
+npm install
+npm test
+node ./bin/repox.js . --output ./repox-out
+```
+
+## Publish
+
+This project is configured for public npm publishing:
+
+```bash
+npm publish --access public
+```
+
+> Current package name is scoped as `@efekurucay/repox`. If unscoped `repox` becomes usable and you want that name instead, the package name can be switched later.
+
+## License
+
+MIT
