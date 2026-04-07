@@ -1,10 +1,10 @@
 {
-  "name": "repodex",
+  "name": "gitdex",
   "version": "1.0.0",
   "description": "Turn a local folder into clean, portable .txt bundles grouped by top-level directory.",
   "type": "module",
   "bin": {
-    "repodex": "bin/repodex.js"
+    "gitdex": "bin/gitdex.js"
   },
   "files": [
     "bin",
@@ -17,15 +17,15 @@
   },
   "scripts": {
     "test": "node --test",
-    "smoke": "node ./bin/repodex.js --help"
+    "smoke": "node ./bin/gitdex.js --help"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/efekurucay/repodex.git"
+    "url": "git+https://github.com/efekurucay/gitdex.git"
   },
   "keywords": [
     "cli",
-    "repodex",
+    "gitdex",
     "notebooklm",
     "local-export",
     "text-export",
@@ -36,9 +36,9 @@
   "author": "Efe Kurucay",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/efekurucay/repodex/issues"
+    "url": "https://github.com/efekurucay/gitdex/issues"
   },
-  "homepage": "https://github.com/efekurucay/repodex#readme",
+  "homepage": "https://github.com/efekurucay/gitdex#readme",
   "publishConfig": {
     "access": "public"
   }

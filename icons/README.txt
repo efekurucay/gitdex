@@ -1,4 +1,4 @@
-Bu klasor repodex marka varliklarini tutar:
+Bu klasor gitdex marka varliklarini tutar:
 
 - icon16.png
 - icon48.png

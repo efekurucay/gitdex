@@ -1,6 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
-import { buildRepodex } from './core.js';
+import { buildGitdex } from './core.js';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
@@ -21,13 +21,13 @@ function colorize(color, value) {
 
 function printHelp() {
   console.log(`
-${colorize('bold', 'repodex')} — make a repo understandable for LLMs via clean .txt bundles.
+${colorize('bold', 'gitdex')} — make a repo understandable for LLMs via clean .txt bundles.
 
 Usage:
-  repodex [input-directory] [options]
+  gitdex [input-directory] [options]
 
 Options:
-  -o, --output <dir>           Output directory (default: ./repodex)
+  -o, --output <dir>           Output directory (default: ./gitdex)
       --include-node-modules   Include node_modules
       --include-dot-git        Include .git
       --include-binary         Include binary files as UTF-8 text attempt
@@ -37,10 +37,10 @@ Options:
   -v, --version                Show version
 
 Examples:
-  repodex
-  repodex .
-  repodex ../my-project --output ./repodex
-  repodex . --force --include-node-modules
+  gitdex
+  gitdex .
+  gitdex ../my-project --output ./gitdex
+  gitdex . --force --include-node-modules
 `);
 }
 
@@ -54,7 +54,7 @@ async function getVersion() {
 function parseArgs(argv) {
   const args = {
     inputDir: '.',
-    outputDir: 'repodex',
+    outputDir: 'gitdex',
     includeNodeModules: false,
     includeDotGit: false,
     includeBinary: false,
@@ -137,13 +137,13 @@ export async function runCli(argv) {
     }
 
     if (!args.silent) {
-      console.log(colorize('bold', 'repodex'));
+      console.log(colorize('bold', 'gitdex'));
       console.log(colorize('dim', `input:  ${path.resolve(args.inputDir)}`));
       console.log(colorize('dim', `output: ${path.resolve(args.outputDir)}`));
       console.log('');
     }
 
-    const result = await buildRepodex(args.inputDir, args.outputDir, args, {
+    const result = await buildGitdex(args.inputDir, args.outputDir, args, {
       onFile: args.silent
         ? undefined
         : (filePath) => {
