@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "GitHub to NotebookLM",
-  "version": "1.0.0",
-  "description": "Clone any public GitHub repo, convert all files to .txt with file path headers, merge subdirectory files, and import to NotebookLM in one click.",
+  "version": "1.2.0",
+  "description": "Convert GitHub repos into NotebookLM-ready .txt bundles, then download them as a single ZIP.",
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "downloads",
     "tabs",
     "scripting",
@@ -25,6 +26,13 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://notebooklm.google.com/*"],
+      "js": ["notebooklm-content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

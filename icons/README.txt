@@ -1,13 +1,12 @@
-Bu klasore asagidaki ikon dosyalarini ekleyin:
+Bu klasorde extension icin gerekli placeholder ikonlar hazir gelir:
 
-- icon16.png  (16x16 piksel)
-- icon48.png  (48x48 piksel)
-- icon128.png (128x128 piksel)
+- icon16.png
+- icon48.png
+- icon128.png
 
-Herhangi bir PNG ikonu kullanabilirsiniz.
-Iconlari kendiz olusturmak icin:
-- https://favicon.io/favicon-generator/
-- https://www.canva.com/
-- Herhangi bir resim editoru
+Isterseniz bunlari kendi markaniza ait PNG ikonlarla degistirebilirsiniz.
+Onerilen boyutlar:
 
-Not: Ikonlar olmadan da extension calisir, sadece gorsel ikonu olmaz.
+- 16x16 piksel
+- 48x48 piksel
+- 128x128 piksel

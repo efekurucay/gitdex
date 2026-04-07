@@ -1,33 +1,45 @@
-// popup.js - GitHub to NotebookLM Chrome Extension
-
 const BINARY_EXTENSIONS = new Set([
-  'png','jpg','jpeg','gif','bmp','ico','svg','webp',
-  'mp3','mp4','wav','avi','mov','mkv','webm',
-  'zip','tar','gz','rar','7z',
-  'pdf','doc','docx','xls','xlsx','ppt','pptx',
-  'exe','dll','so','dylib','bin','dat',
-  'woff','woff2','ttf','eot','otf',
-  'pyc','class','o','a',
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'svg', 'webp',
+  'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv', 'webm',
+  'zip', 'tar', 'gz', 'rar', '7z',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'exe', 'dll', 'so', 'dylib', 'bin', 'dat',
+  'woff', 'woff2', 'ttf', 'eot', 'otf',
+  'pyc', 'class', 'o', 'a',
   'lock'
 ]);
 
 const IGNORE_DIRS = new Set(['.git', '__pycache__', '.DS_Store']);
+const REPO_URL_STORAGE_KEY = 'repoUrl';
+const GITHUB_TOKEN_STORAGE_KEY = 'githubToken';
+const PENDING_NOTEBOOKLM_KEY = 'pendingNotebookLMUpload';
 
-let allProcessedFiles = []; // { filename: string, content: string }
+let allProcessedFiles = [];
 
-// --- UI helpers ---
-function log(msg, type = 'info') {
+function storageGet(area, keys) {
+  return new Promise(resolve => chrome.storage[area].get(keys, resolve));
+}
+
+function storageSet(area, value) {
+  return new Promise(resolve => chrome.storage[area].set(value, resolve));
+}
+
+function storageRemove(area, keys) {
+  return new Promise(resolve => chrome.storage[area].remove(keys, resolve));
+}
+
+function log(message, type = 'info') {
   const logContent = document.getElementById('logContent');
   const line = document.createElement('div');
   line.className = `log-${type}`;
-  line.textContent = msg;
+  line.textContent = message;
   logContent.appendChild(line);
   logContent.scrollTop = logContent.scrollHeight;
   document.getElementById('logContainer').classList.remove('hidden');
 }
 
 function setProgress(percent, text) {
-  document.getElementById('progressFill').style.width = percent + '%';
+  document.getElementById('progressFill').style.width = `${Math.max(0, Math.min(100, percent))}%`;
   document.getElementById('progressText').textContent = text;
   document.getElementById('progressContainer').classList.remove('hidden');
 }
@@ -36,6 +48,7 @@ function setButtonLoading(loading) {
   const btn = document.getElementById('startBtn');
   const text = document.getElementById('btnText');
   const spinner = document.getElementById('btnSpinner');
+
   btn.disabled = loading;
   if (loading) {
     spinner.classList.remove('hidden');
@@ -46,83 +59,213 @@ function setButtonLoading(loading) {
   }
 }
 
-// --- GitHub API ---
-async function fetchGitHubTree(owner, repo, token) {
-  const headers = { 'Accept': 'application/vnd.github.v3+json' };
-  if (token) headers['Authorization'] = `token ${token}`;
-
-  // Get default branch
-  const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
-  if (!repoRes.ok) throw new Error(`Repo bulunamadi: ${repoRes.status} ${repoRes.statusText}`);
-  const repoData = await repoRes.json();
-  const branch = repoData.default_branch;
-
-  // Get full tree recursively
-  const treeRes = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-    { headers }
-  );
-  if (!treeRes.ok) throw new Error(`Tree alinamadi: ${treeRes.status}`);
-  const treeData = await treeRes.json();
-  return { tree: treeData.tree, branch };
+function setDownloadLoading(loading) {
+  const button = document.getElementById('downloadBtn');
+  button.disabled = loading;
+  button.textContent = loading ? 'ZIP Hazirlaniyor...' : 'ZIP Olarak Indir';
 }
 
-async function fetchFileContent(owner, repo, path, token) {
-  const headers = { 'Accept': 'application/vnd.github.v3.raw' };
-  if (token) headers['Authorization'] = `token ${token}`;
-  const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    { headers }
-  );
-  if (!res.ok) throw new Error(`Dosya alinamadi: ${path}`);
-  return await res.text();
+function setImportLoading(loading) {
+  const button = document.getElementById('importNotebookLMBtn');
+  button.disabled = loading;
+  button.textContent = loading ? 'Aktariliyor...' : "NotebookLM'e Aktar";
 }
 
-// --- Core processing ---
+function buildGitHubHeaders(token, accept = 'application/vnd.github+json') {
+  const headers = { Accept: accept };
+  if (token) {
+    headers.Authorization = `token ${token}`;
+  }
+  return headers;
+}
+
+function encodeGitHubPath(path) {
+  return path
+    .split('/')
+    .filter(Boolean)
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+}
+
+async function fetchGitHubJson(url, token, errorPrefix) {
+  const response = await fetch(url, {
+    headers: buildGitHubHeaders(token)
+  });
+
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const body = await response.json();
+      if (body?.message) {
+        detail += ` - ${body.message}`;
+      }
+    } catch {
+      // Ignore JSON parsing errors in error path.
+    }
+    throw new Error(`${errorPrefix}: ${detail}`);
+  }
+
+  return response.json();
+}
+
+async function fetchRepoMetadata(owner, repo, token) {
+  const repoUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const repoData = await fetchGitHubJson(repoUrl, token, 'Repo bulunamadi');
+  return {
+    branch: repoData.default_branch
+  };
+}
+
+async function fetchGitHubTree(owner, repo, branch, token) {
+  const treeUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
+  return fetchGitHubJson(treeUrl, token, 'Tree alinamadi');
+}
+
+async function fetchDirectoryEntries(owner, repo, branch, directoryPath, token) {
+  const suffix = directoryPath ? `/${encodeGitHubPath(directoryPath)}` : '';
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents${suffix}?ref=${encodeURIComponent(branch)}`;
+  const payload = await fetchGitHubJson(url, token, `Klasor okunamadi (${directoryPath || '/'})`);
+  return Array.isArray(payload) ? payload : [];
+}
+
+async function fetchFileContent(owner, repo, branch, path, token) {
+  const headers = buildGitHubHeaders(token, 'application/vnd.github.v3.raw');
+  const suffix = encodeGitHubPath(path);
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${suffix}?ref=${encodeURIComponent(branch)}`;
+  const response = await fetch(url, { headers });
+
+  if (!response.ok) {
+    throw new Error(`Dosya alinamadi: ${path}`);
+  }
+
+  return response.text();
+}
+
 function isBinaryFile(path) {
-  const ext = path.split('.').pop().toLowerCase();
-  return BINARY_EXTENSIONS.has(ext);
+  const extension = path.includes('.') ? path.split('.').pop().toLowerCase() : '';
+  return BINARY_EXTENSIONS.has(extension);
 }
 
 function shouldIgnore(path, ignoreNodeModules, ignoreDotGit) {
   const parts = path.split('/');
   for (const part of parts) {
-    if (IGNORE_DIRS.has(part)) return true;
-    if (ignoreNodeModules && part === 'node_modules') return true;
-    if (ignoreDotGit && part === '.git') return true;
+    if (IGNORE_DIRS.has(part)) {
+      return true;
+    }
+    if (ignoreNodeModules && part === 'node_modules') {
+      return true;
+    }
+    if (ignoreDotGit && part === '.git') {
+      return true;
+    }
   }
   return false;
 }
 
-// Group files by their top-level directory (or root)
-function groupFilesByDirectory(files) {
-  // files: [{ path, content }]
-  // Root files: no slash in path -> stay as individual files
-  // Subdirectory files: grouped by top-level dir name
-  const rootFiles = [];
-  const dirMap = {}; // dirName -> [{ path, content }]
+async function fetchRepositoryInventory(owner, repo, options) {
+  const { token, ignoreNodeModules, ignoreDotGit } = options;
+  const { branch } = await fetchRepoMetadata(owner, repo, token);
+  const treeResponse = await fetchGitHubTree(owner, repo, branch, token);
 
-  for (const f of files) {
-    const slashIdx = f.path.indexOf('/');
-    if (slashIdx === -1) {
-      // root level file
-      rootFiles.push(f);
-    } else {
-      const dirName = f.path.substring(0, slashIdx);
-      if (!dirMap[dirName]) dirMap[dirName] = [];
-      dirMap[dirName].push(f);
+  if (!treeResponse.truncated) {
+    return {
+      branch,
+      tree: Array.isArray(treeResponse.tree) ? treeResponse.tree : [],
+      strategy: 'git-tree'
+    };
+  }
+
+  log('UYARI: Git tree truncated oldu. Contents API fallback devrede.', 'error');
+  setProgress(8, 'Buyuk repo algilandi, klasorler tek tek taraniyor...');
+
+  const discoveredFiles = [];
+  const directories = [''];
+  let scannedDirectoryCount = 0;
+
+  while (directories.length > 0) {
+    const currentDirectory = directories.shift();
+    scannedDirectoryCount += 1;
+    setProgress(8, `Klasorler taraniyor (${scannedDirectoryCount})...`);
+
+    const entries = await fetchDirectoryEntries(owner, repo, branch, currentDirectory, token);
+    for (const entry of entries) {
+      if (!entry?.path) {
+        continue;
+      }
+
+      if (shouldIgnore(entry.path, ignoreNodeModules, ignoreDotGit)) {
+        continue;
+      }
+
+      if (entry.type === 'dir') {
+        directories.push(entry.path);
+        continue;
+      }
+
+      if (entry.type === 'file' || entry.type === 'symlink') {
+        discoveredFiles.push({ path: entry.path, type: 'blob' });
+      }
     }
   }
-  return { rootFiles, dirMap };
+
+  return {
+    branch,
+    tree: discoveredFiles,
+    strategy: 'contents-fallback'
+  };
+}
+
+function groupFilesByDirectory(files) {
+  const rootFiles = [];
+  const directoryMap = {};
+
+  for (const file of [...files].sort((left, right) => left.path.localeCompare(right.path))) {
+    const slashIndex = file.path.indexOf('/');
+    if (slashIndex === -1) {
+      rootFiles.push(file);
+      continue;
+    }
+
+    const directoryName = file.path.slice(0, slashIndex);
+    if (!directoryMap[directoryName]) {
+      directoryMap[directoryName] = [];
+    }
+    directoryMap[directoryName].push(file);
+  }
+
+  return { rootFiles, directoryMap };
 }
 
 function buildTxtContent(path, content) {
   return `${path}\n${content}`;
 }
 
-function buildMergedTxtContent(dirName, files) {
-  // Merge all files in a directory into one txt file named after the dir
-  return files.map(f => `${f.path}\n${f.content}`).join('\n\n---\n\n');
+function buildMergedTxtContent(files) {
+  return files.map(file => `${file.path}\n${file.content}`).join('\n\n---\n\n');
+}
+
+function formatDuration(milliseconds) {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
+    return '00:00';
+  }
+
+  const totalSeconds = Math.max(1, Math.round(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function ellipsizeMiddle(value, maxLength = 52) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const side = Math.max(8, Math.floor((maxLength - 3) / 2));
+  return `${value.slice(0, side)}...${value.slice(-side)}`;
+}
+
+function sanitizeName(value) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'repo';
 }
 
 async function processRepo(owner, repo, options) {
@@ -131,113 +274,205 @@ async function processRepo(owner, repo, options) {
   log(`Repo bilgileri aliniyor: ${owner}/${repo}`, 'info');
   setProgress(5, 'Repo agaci aliniyor...');
 
-  const { tree } = await fetchGitHubTree(owner, repo, token);
-
-  // Filter only blobs (files)
+  const { branch, tree, strategy } = await fetchRepositoryInventory(owner, repo, options);
   const allFiles = tree.filter(item => item.type === 'blob');
   const filteredFiles = allFiles.filter(item => {
-    if (shouldIgnore(item.path, ignoreNodeModules, ignoreDotGit)) return false;
-    if (ignoreBinaryFiles && isBinaryFile(item.path)) return false;
+    if (shouldIgnore(item.path, ignoreNodeModules, ignoreDotGit)) {
+      return false;
+    }
+    if (ignoreBinaryFiles && isBinaryFile(item.path)) {
+      return false;
+    }
     return true;
   });
 
-  log(`Toplam ${filteredFiles.length} dosya isleniyor...`, 'info');
-  setProgress(10, `${filteredFiles.length} dosya bulundu`);
-
-  // Fetch all file contents
-  const rawFiles = [];
-  for (let i = 0; i < filteredFiles.length; i++) {
-    const file = filteredFiles[i];
-    const percent = 10 + Math.round((i / filteredFiles.length) * 60);
-    setProgress(percent, `Indiriliyor: ${file.path}`);
-    try {
-      const content = await fetchFileContent(owner, repo, file.path, token);
-      rawFiles.push({ path: file.path, content });
-      log(`OK: ${file.path}`, 'success');
-    } catch (e) {
-      log(`ATLANDI: ${file.path} - ${e.message}`, 'error');
-    }
-    // Small delay to avoid rate limiting
-    if (i % 10 === 9) await new Promise(r => setTimeout(r, 100));
+  if (strategy === 'contents-fallback') {
+    log(`Fallback tarama tamamlandi. ${filteredFiles.length} dosya bulundu.`, 'info');
   }
 
-  setProgress(75, 'Dosyalar isleniyor...');
+  log(`Toplam ${filteredFiles.length} dosya isleniyor...`, 'info');
+  setProgress(12, `${filteredFiles.length} dosya bulundu`);
 
-  // Group files
-  const { rootFiles, dirMap } = groupFilesByDirectory(rawFiles);
+  const rawFiles = [];
+  const fetchStart = performance.now();
+
+  for (let index = 0; index < filteredFiles.length; index += 1) {
+    const file = filteredFiles[index];
+    const completedCount = index;
+    const elapsed = performance.now() - fetchStart;
+    const averageMs = completedCount > 0 ? elapsed / completedCount : 0;
+    const remainingMs = averageMs * (filteredFiles.length - completedCount);
+    const percent = 12 + Math.round(((index + 1) / Math.max(filteredFiles.length, 1)) * 68);
+    const etaText = completedCount > 0 ? ` • ETA ${formatDuration(remainingMs)}` : '';
+
+    setProgress(percent, `Indiriliyor ${index + 1}/${filteredFiles.length}${etaText} • ${ellipsizeMiddle(file.path)}`);
+
+    try {
+      const content = await fetchFileContent(owner, repo, branch, file.path, token);
+      rawFiles.push({ path: file.path, content });
+      log(`OK: ${file.path}`, 'success');
+    } catch (error) {
+      log(`ATLANDI: ${file.path} - ${error.message}`, 'error');
+    }
+
+    if (index > 0 && index % 10 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 75));
+    }
+  }
+
+  setProgress(84, 'TXT dosyalari hazirlaniyor...');
+
+  const { rootFiles, directoryMap } = groupFilesByDirectory(rawFiles);
   const processedFiles = [];
 
-  // Root files: individual .txt files
-  for (const f of rootFiles) {
-    const baseName = f.path.replace(/\.[^/.]+$/, '') || f.path;
-    const txtName = baseName + '.txt';
-    const txtContent = buildTxtContent(f.path, f.content);
-    processedFiles.push({ filename: txtName, content: txtContent });
+  for (const file of rootFiles) {
+    const baseName = file.path.replace(/\.[^/.]+$/, '') || file.path;
+    const txtName = `${baseName}.txt`;
+    processedFiles.push({
+      filename: txtName,
+      content: buildTxtContent(file.path, file.content)
+    });
     log(`Root dosya: ${txtName}`, 'success');
   }
 
-  // Directory files: merged into one .txt per top-level dir
-  for (const [dirName, files] of Object.entries(dirMap)) {
-    const txtName = dirName + '.txt';
-    const mergedContent = buildMergedTxtContent(dirName, files);
-    processedFiles.push({ filename: txtName, content: mergedContent });
-    log(`Klasor birlestirme: ${dirName}/ (${files.length} dosya) -> ${txtName}`, 'success');
+  for (const [directoryName, files] of Object.entries(directoryMap).sort(([left], [right]) => left.localeCompare(right))) {
+    const txtName = `${directoryName}.txt`;
+    processedFiles.push({
+      filename: txtName,
+      content: buildMergedTxtContent(files)
+    });
+    log(`Klasor birlestirme: ${directoryName}/ (${files.length} dosya) -> ${txtName}`, 'success');
   }
 
-  setProgress(90, 'Tamamlaniyor...');
+  setProgress(94, 'ZIP indirilmeye hazir.');
   return processedFiles;
 }
 
-// --- Download as ZIP ---
-async function downloadFiles(files, repoName) {
-  // Use JSZip loaded from CDN via background script message
-  // We'll create individual files and trigger download
-  // For simplicity, we create a single merged .txt if only 1 file,
-  // or a .zip-like structure via multiple downloads
-  // Actually, we'll use the Chrome downloads API via background
+async function downloadFilesAsZip(files, repoName) {
+  if (!files.length) {
+    throw new Error('ZIP icin dosya bulunamadi.');
+  }
 
-  chrome.runtime.sendMessage(
-    { action: 'downloadFiles', files, repoName },
-    (response) => {
-      if (response && response.success) {
-        log('Dosyalar indirildi!', 'success');
-      } else {
-        log('Indirme hatasi: ' + (response && response.error), 'error');
+  const zipEntries = files.map(file => ({
+    name: `${repoName}/${file.filename}`,
+    data: file.content
+  }));
+
+  const zipBlob = createZipBlob(zipEntries);
+  const zipUrl = URL.createObjectURL(zipBlob);
+
+  await new Promise((resolve, reject) => {
+    chrome.downloads.download(
+      {
+        url: zipUrl,
+        filename: `${repoName}.zip`,
+        saveAs: false,
+        conflictAction: 'overwrite'
+      },
+      downloadId => {
+        const runtimeError = chrome.runtime.lastError;
+        setTimeout(() => URL.revokeObjectURL(zipUrl), 1500);
+
+        if (runtimeError) {
+          reject(new Error(runtimeError.message));
+          return;
+        }
+
+        if (!downloadId) {
+          reject(new Error('Chrome downloads API indirmeyi baslatamadi.'));
+          return;
+        }
+
+        resolve(downloadId);
       }
-    }
-  );
+    );
+  });
 }
 
-// --- Open NotebookLM ---
 function openNotebookLM() {
   chrome.tabs.create({ url: 'https://notebooklm.google.com/' });
 }
 
-// --- Parse GitHub URL ---
-function parseGitHubUrl(url) {
+async function queueNotebookLMPayload(files, repoLabel) {
+  const payload = {
+    version: 1,
+    files: files.map((file) => ({ filename: file.filename, content: file.content })),
+    repoLabel: repoLabel || '',
+    createdAt: Date.now()
+  };
+  await storageSet('local', { [PENDING_NOTEBOOKLM_KEY]: payload });
+}
+
+function startNotebookLMImportFromBackground() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'START_NOTEBOOKLM_IMPORT' }, (response) => {
+      const runtimeError = chrome.runtime.lastError;
+      if (runtimeError) {
+        resolve({ ok: false, error: runtimeError.message });
+        return;
+      }
+      resolve(response || { ok: false, error: 'Beklenmeyen bos yanit' });
+    });
+  });
+}
+
+async function runNotebookLMImport(files, repoLabel) {
+  if (!files.length) {
+    return { ok: false, error: 'Aktarilacak dosya yok.' };
+  }
+  await queueNotebookLMPayload(files, repoLabel);
+  return startNotebookLMImportFromBackground();
+}
+
+function parseGitHubUrl(value) {
+  const input = value.trim();
+  if (!input) {
+    return null;
+  }
+
   try {
-    const u = new URL(url.trim());
-    const parts = u.pathname.replace(/^\//, '').replace(/\/+$/, '').split('/');
-    if (parts.length >= 2) {
-      return { owner: parts[0], repo: parts[1] };
+    const url = new URL(input);
+    const parts = url.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+    if (url.hostname.toLowerCase().includes('github.com') && parts.length >= 2) {
+      return {
+        owner: parts[0],
+        repo: parts[1].replace(/\.git$/i, '')
+      };
     }
-  } catch (e) {
-    // try raw owner/repo
-    const parts = url.trim().split('/');
+  } catch {
+    const parts = input.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
     if (parts.length >= 2) {
-      return { owner: parts[0], repo: parts[1] };
+      return {
+        owner: parts[0],
+        repo: parts[1].replace(/\.git$/i, '')
+      };
     }
   }
+
   return null;
 }
 
-// --- Main ---
-document.addEventListener('DOMContentLoaded', () => {
-  // Restore saved values
-  chrome.storage.local.get(['repoUrl', 'githubToken'], (data) => {
-    if (data.repoUrl) document.getElementById('repoUrl').value = data.repoUrl;
-    if (data.githubToken) document.getElementById('githubToken').value = data.githubToken;
-  });
+async function restoreSavedInputs() {
+  const localData = await storageGet('local', [REPO_URL_STORAGE_KEY, GITHUB_TOKEN_STORAGE_KEY]);
+  const sessionData = await storageGet('session', [GITHUB_TOKEN_STORAGE_KEY]);
+
+  if (localData.repoUrl) {
+    document.getElementById('repoUrl').value = localData.repoUrl;
+  }
+
+  if (localData.githubToken && !sessionData.githubToken) {
+    await storageSet('session', { [GITHUB_TOKEN_STORAGE_KEY]: localData.githubToken });
+    await storageRemove('local', GITHUB_TOKEN_STORAGE_KEY);
+  }
+
+  const token = sessionData.githubToken || localData.githubToken || '';
+  if (token) {
+    document.getElementById('githubToken').value = token;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await restoreSavedInputs();
 
   document.getElementById('startBtn').addEventListener('click', async () => {
     const repoUrl = document.getElementById('repoUrl').value.trim();
@@ -248,27 +483,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const autoImport = document.getElementById('autoImportNotebookLM').checked;
 
     if (!repoUrl) {
-      alert('Lutfen bir GitHub repo URL si girin!');
+      alert('Lutfen bir GitHub repo URLsi girin.');
       return;
     }
 
     const parsed = parseGitHubUrl(repoUrl);
     if (!parsed) {
-      alert('Gecersiz GitHub URL si! Ornek: https://github.com/owner/repo');
+      alert('Gecersiz GitHub URLsi. Ornek: https://github.com/owner/repo');
       return;
     }
 
-    // Save inputs
-    chrome.storage.local.set({ repoUrl, githubToken: token });
+    await storageSet('local', { [REPO_URL_STORAGE_KEY]: repoUrl });
+    if (token) {
+      await storageSet('session', { [GITHUB_TOKEN_STORAGE_KEY]: token });
+    } else {
+      await storageRemove('session', GITHUB_TOKEN_STORAGE_KEY);
+    }
+    await storageRemove('local', GITHUB_TOKEN_STORAGE_KEY);
 
-    // Reset UI
+    allProcessedFiles = [];
     document.getElementById('logContent').innerHTML = '';
     document.getElementById('logContainer').classList.add('hidden');
     document.getElementById('resultContainer').classList.add('hidden');
     document.getElementById('progressContainer').classList.remove('hidden');
     document.getElementById('downloadBtn').classList.add('hidden');
+    document.getElementById('importNotebookLMBtn').classList.add('hidden');
     document.getElementById('openNotebookLMBtn').classList.add('hidden');
-
+    setDownloadLoading(false);
+    setImportLoading(false);
     setButtonLoading(true);
 
     try {
@@ -282,31 +524,78 @@ document.addEventListener('DOMContentLoaded', () => {
       allProcessedFiles = files;
       setProgress(100, 'Tamamlandi!');
 
-      const resultText = document.getElementById('resultText');
-      resultText.textContent = `${files.length} txt dosyasi olusturuldu. (${files.reduce((a, f) => a + f.content.length, 0).toLocaleString()} karakter)`;
+      const totalCharacters = files.reduce((sum, file) => sum + file.content.length, 0);
+      document.getElementById('resultText').textContent = `${files.length} txt dosyasi hazir. ZIP olarak indirilebilir. (${totalCharacters.toLocaleString()} karakter)`;
       document.getElementById('resultContainer').classList.remove('hidden');
       document.getElementById('downloadBtn').classList.remove('hidden');
+      document.getElementById('importNotebookLMBtn').classList.remove('hidden');
+      document.getElementById('openNotebookLMBtn').classList.remove('hidden');
+
+      log(`Basarili! ${files.length} dosya ZIP icin hazir.`, 'success');
 
       if (autoImport) {
-        document.getElementById('openNotebookLMBtn').classList.remove('hidden');
+        log('NotebookLM aktarimi baslatiliyor...', 'info');
+        const importResult = await runNotebookLMImport(files, `${parsed.owner}/${parsed.repo}`);
+        if (importResult.ok) {
+          log(`NotebookLM: ${importResult.uploaded} dosya yukleme inputuna aktarildi.`, 'success');
+        } else {
+          log(`NotebookLM aktarim basarisiz: ${importResult.error}`, 'error');
+        }
       }
-
-      log(`Basarili! ${files.length} dosya hazir.`, 'success');
-    } catch (err) {
-      log('HATA: ' + err.message, 'error');
+    } catch (error) {
+      log(`HATA: ${error.message}`, 'error');
       setProgress(0, 'Hata olustu');
-      document.getElementById('resultText').textContent = 'Hata: ' + err.message;
+      document.getElementById('resultText').textContent = `Hata: ${error.message}`;
       document.getElementById('resultContainer').classList.remove('hidden');
     } finally {
       setButtonLoading(false);
     }
   });
 
-  document.getElementById('downloadBtn').addEventListener('click', () => {
-    if (allProcessedFiles.length === 0) return;
+  document.getElementById('downloadBtn').addEventListener('click', async () => {
+    if (!allProcessedFiles.length) {
+      return;
+    }
+
     const repoUrl = document.getElementById('repoUrl').value.trim();
     const parsed = parseGitHubUrl(repoUrl) || { owner: 'repo', repo: 'files' };
-    downloadFiles(allProcessedFiles, `${parsed.owner}_${parsed.repo}`);
+    const repoName = sanitizeName(`${parsed.owner}_${parsed.repo}`);
+
+    try {
+      setDownloadLoading(true);
+      setProgress(100, 'ZIP olusturuluyor ve indiriliyor...');
+      await downloadFilesAsZip(allProcessedFiles, repoName);
+      log(`ZIP indirildi: ${repoName}.zip`, 'success');
+      setProgress(100, 'ZIP indirildi.');
+    } catch (error) {
+      log(`ZIP indirme hatasi: ${error.message}`, 'error');
+      setProgress(100, 'ZIP indirme hatasi olustu.');
+    } finally {
+      setDownloadLoading(false);
+    }
+  });
+
+  document.getElementById('importNotebookLMBtn').addEventListener('click', async () => {
+    if (!allProcessedFiles.length) {
+      return;
+    }
+    const repoUrl = document.getElementById('repoUrl').value.trim();
+    const parsed = parseGitHubUrl(repoUrl) || { owner: 'repo', repo: 'files' };
+    const label = `${parsed.owner}/${parsed.repo}`;
+    setImportLoading(true);
+    log('NotebookLM aktarimi baslatiliyor...', 'info');
+    try {
+      const importResult = await runNotebookLMImport(allProcessedFiles, label);
+      if (importResult.ok) {
+        log(`NotebookLM: ${importResult.uploaded} dosya inputa verildi.`, 'success');
+      } else {
+        log(`NotebookLM aktarim basarisiz: ${importResult.error}`, 'error');
+      }
+    } catch (error) {
+      log(`NotebookLM aktarim hatasi: ${error.message}`, 'error');
+    } finally {
+      setImportLoading(false);
+    }
   });
 
   document.getElementById('openNotebookLMBtn').addEventListener('click', () => {

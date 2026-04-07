@@ -97,6 +97,13 @@ input[type="checkbox"] {
   margin-bottom: 14px;
 }
 
+.helper-text {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #6e7681;
+  line-height: 1.4;
+}
+
 .btn-primary {
   width: 100%;
   padding: 10px;
@@ -227,6 +234,7 @@ input[type="checkbox"] {
   display: flex;
   gap: 8px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .hidden {
