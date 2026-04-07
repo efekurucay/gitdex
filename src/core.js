@@ -13,7 +13,7 @@ export const BINARY_EXTENSIONS = new Set([
 ]);
 
 export const IGNORE_DIRS = new Set(['.git', '__pycache__', '.DS_Store']);
-export const OUTPUT_MARKER_FILE = '.repox-output';
+export const OUTPUT_MARKER_FILE = '.repodex-output';
 
 function toPosixPath(value) {
   return value.split(path.sep).join('/');
@@ -197,7 +197,7 @@ async function ensureCleanOutputDirectory(outputDir, force) {
 
   if (!stats) {
     await fs.mkdir(outputDir, { recursive: true });
-    await fs.writeFile(path.join(outputDir, OUTPUT_MARKER_FILE), 'repox output directory\n', 'utf8');
+    await fs.writeFile(path.join(outputDir, OUTPUT_MARKER_FILE), 'repodex output directory\n', 'utf8');
     return;
   }
 
@@ -219,16 +219,16 @@ async function ensureCleanOutputDirectory(outputDir, force) {
 
   if (!force && !hasMarker && !isEmpty) {
     throw new Error(
-      `Output directory already exists and is not a repox folder: ${outputDir}. Use --force to clean it or choose --output.`
+      `Output directory already exists and is not a repodex folder: ${outputDir}. Use --force to clean it or choose --output.`
     );
   }
 
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(outputDir, { recursive: true });
-  await fs.writeFile(markerPath, 'repox output directory\n', 'utf8');
+  await fs.writeFile(markerPath, 'repodex output directory\n', 'utf8');
 }
 
-export async function buildRepox(inputDir, outputDir, options = {}, hooks = {}) {
+export async function buildRepodex(inputDir, outputDir, options = {}, hooks = {}) {
   const resolvedInputDir = path.resolve(inputDir);
   const resolvedOutputDir = path.resolve(outputDir);
   const normalizedOptions = {

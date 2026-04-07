@@ -1,4 +1,4 @@
-Bu klasor repox marka varliklarini tutar:
+Bu klasor repodex marka varliklarini tutar:
 
 - icon16.png
 - icon48.png

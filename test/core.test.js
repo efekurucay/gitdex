@@ -3,17 +3,17 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildRepox, OUTPUT_MARKER_FILE } from '../src/core.js';
+import { buildRepodex, OUTPUT_MARKER_FILE } from '../src/core.js';
 
 async function writeFile(filePath, content) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, content);
 }
 
-test('buildRepox groups root files and top-level directories', async () => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'repox-test-'));
+test('buildRepodex groups root files and top-level directories', async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'repodex-test-'));
   const inputDir = path.join(tempRoot, 'project');
-  const outputDir = path.join(inputDir, 'repox');
+  const outputDir = path.join(inputDir, 'repodex');
 
   await writeFile(path.join(inputDir, 'README.md'), '# Hello\n');
   await writeFile(path.join(inputDir, 'package.json'), '{"name":"demo"}\n');
@@ -23,7 +23,7 @@ test('buildRepox groups root files and top-level directories', async () => {
   await writeFile(path.join(inputDir, '.git', 'config'), '[core]\n');
   await fs.writeFile(path.join(inputDir, 'logo.png'), Buffer.from([0, 1, 2, 3, 4]));
 
-  const result = await buildRepox(inputDir, outputDir);
+  const result = await buildRepodex(inputDir, outputDir);
 
   assert.equal(result.generatedFiles, 3);
 
@@ -39,16 +39,16 @@ test('buildRepox groups root files and top-level directories', async () => {
   assert.doesNotMatch(srcTxt, /node_modules/);
 });
 
-test('buildRepox protects non-repox output directories unless forced', async () => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'repox-test-'));
+test('buildRepodex protects non-repodex output directories unless forced', async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'repodex-test-'));
   const inputDir = path.join(tempRoot, 'project');
   const outputDir = path.join(inputDir, 'custom-output');
 
   await writeFile(path.join(inputDir, 'README.md'), '# Hello\n');
   await writeFile(path.join(outputDir, 'keep.txt'), 'do not remove\n');
 
-  await assert.rejects(() => buildRepox(inputDir, outputDir), /not a repox folder/);
-  await buildRepox(inputDir, outputDir, { force: true });
+  await assert.rejects(() => buildRepodex(inputDir, outputDir), /not a repodex folder/);
+  await buildRepodex(inputDir, outputDir, { force: true });
 
   const outputFiles = await fs.readdir(outputDir);
   assert.ok(outputFiles.includes(OUTPUT_MARKER_FILE));
