@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/efekurucay/repodex/main/icons/icon128.png" alt="repodex logo" width="96" height="96" />
+  <img src="https://raw.githubusercontent.com/efekurucay/repodex/main/icons/logo-readme.svg" alt="repodex logo" width="96" height="96" />
 
   <h1>repodex</h1>
   <p>Make a whole repo understandable for LLMs.</p>
