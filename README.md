@@ -5,7 +5,7 @@
   <p>Turn any local folder into clean, portable <code>.txt</code> bundles.</p>
 
   <p>
-    <a href="https://www.npmjs.com/package/@efekurucay/repox"><img alt="npm" src="https://img.shields.io/npm/v/%40efekurucay%2Frepox?style=for-the-badge&logo=npm"></a>
+    <a href="https://www.npmjs.com/package/repox"><img alt="npm" src="https://img.shields.io/npm/v/repox?style=for-the-badge&logo=npm"></a>
     <a href="https://github.com/efekurucay/repox/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/efekurucay/repox/ci.yml?style=for-the-badge&label=CI"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/efekurucay/repox?style=for-the-badge"></a>
     <img alt="Node" src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white">
@@ -83,19 +83,19 @@ export function ...
 Run it in the folder you want to export:
 
 ```bash
-npx @efekurucay/repox
+npx repox
 ```
 
 Or point it at another folder:
 
 ```bash
-npx @efekurucay/repox ../my-project
+npx repox ../my-project
 ```
 
 After a global install:
 
 ```bash
-npm i -g @efekurucay/repox
+npm i -g repox
 repox
 ```
 
@@ -147,7 +147,6 @@ This project is configured for public npm publishing:
 npm publish --access public
 ```
 
-> Current package name is scoped as `@efekurucay/repox`. If unscoped `repox` becomes usable and you want that name instead, the package name can be switched later.
 
 ## License
 

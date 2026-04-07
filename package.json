@@ -1,5 +1,5 @@
 {
-  "name": "@efekurucay/repox",
+  "name": "repox",
   "version": "1.0.0",
   "description": "Turn a local folder into clean, portable .txt bundles grouped by top-level directory.",
   "type": "module",
